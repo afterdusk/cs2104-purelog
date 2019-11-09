@@ -4,8 +4,10 @@ import qualified Data.List as L
 
 newtype Program = Program [Rule] deriving Show
 
+-- e.g. ancestor(X,Y) :- parent(X,Y).
 data Rule = Rule Rel [[Rel]] deriving Show
 
+-- e.g. parent(X,Y).
 {- this supports either a relation or a cut operator -}
 data Rel = Rel String [Term] 
          | Cut deriving Show
