@@ -4,6 +4,8 @@ import Text.Parsec
 import Lexer
 import AST
 
+import Debug.Trace 
+
 type Parser = Parsec [(SourcePos, Token)] ()
 
 -- converts function to parser
@@ -29,7 +31,7 @@ functorP :: Parser (String, [Term]) -- functor and relation have the same parser
 functorP = do
   term <- termP
   case term of 
-    (Func name terms) -> return (name, terms)
+    (Func name terms) -> trace ("functorP: " ++ show term) (return (name, terms))
     (Atom s) -> return (s, []) -- TODO: is this correct?
     (Var s) -> return(s, [])
 
@@ -67,9 +69,9 @@ ruleP :: Parser Rule
 ruleP = do
   head <- relHeadP
   rels <- 
-    (between (symbol ":-") (symbol ".") (flip sepBy (symbol ";") . flip sepBy (symbol ",") $ relP))
+    (between (symbol ":-") (symbol ".") (flip sepBy (symbol ",") . flip sepBy (symbol ";") $ relP))
       <|> (symbol "." *> return [[]])
-  return (Rule head rels)
+  trace ("ruleP: " ++ show (Rule head rels)) (return (Rule head rels))
 
 programP :: Parser Program
 programP = fmap Program $ many ruleP

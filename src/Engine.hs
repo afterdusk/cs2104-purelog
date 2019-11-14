@@ -61,6 +61,7 @@ rename (Rule h body) height = Rule (renameRel h) (map (map renameRel) body)
 
 toFunctor :: Rel -> Term
 toFunctor (Rel name terms) = Func name terms
+toFunctor a@_ = trace ("toFunctor: " ++ show a) (Func "123" []) -- TODO
 
 match :: Rel -> Rule -> Bool
 match (Rel name terms) (Rule (Rel name' terms') _) =
@@ -76,26 +77,26 @@ match (Rel name terms) (Rule (Rel name' terms') _) =
   -- type Program = Program [Rule] deriving Show
 
 searchAll :: Program -> Tree -> [Subs]
-searchAll (Program rules) tree = search tree 0
+searchAll (Program rules) tree = do
+  search tree 0
   where
     
-    -- populates children of a tree node by returning list of Trees
-    expandTree (Tree (Goal subs rels) _ _) height = do
-      -- get all matching rules
-      rule@(Rule matchingHead matchingRels) <- filter (match (head rels)) rules
+    expand rule height rels@(headRels:tailRels) subs = do
       -- rename matching rules
       let renamedRule@(Rule renamedHead renamedRels) = rename rule height
       -- get new goal rels, which are query rels + renamed matching rels
       -- assume singleton relationships by using concat -- TODO: is this correct?
-      let newGoal = (concat renamedRels) ++ (tail rels) 
+      let newGoal = (concat renamedRels) ++ tailRels 
       -- unify with head to get new subs
-      let maybeSubs = trace ((show (head rels)) ++ (show renamedHead)) (unify (toFunctor (head rels)) (toFunctor renamedHead) subs)
+      let maybeSubs = trace ((show headRels) ++ (show renamedHead)) (unify (toFunctor headRels) (toFunctor renamedHead) subs)
       -- create child trees
       case maybeSubs of
-          Just newSubs -> trace (show (Goal newSubs newGoal)) (return (Tree (Goal newSubs newGoal) [] False))
-          Nothing -> []
-    
-    -- input: node
+          Just newSubs -> trace (show (Goal newSubs newGoal)) ([Tree (Goal newSubs newGoal) [] False])
+          Nothing -> [] 
+
+    hasCut rels = elem Cut rels
+
+    -- input: tree node
     -- output: list of subs 
     search tree height =
       case tree of
@@ -104,9 +105,33 @@ searchAll (Program rules) tree = search tree 0
         (Tree (Goal subs rels) trees True) -> do
           childTree <- trees
           search childTree (height + 1)
-        childTree@(Tree goal _ False) -> do 
+        (Tree (Goal subs rels@(headRels:tailRels)) _ False) -> do 
           -- unpack list of child trees
-          expandedTree <- expandTree childTree (height + 1)
+          expandedTree <- do
+            -- expands childTree (height + 1)
+            case headRels of
+              (Rel _ _) -> trace ("expands: " ++ show headRels) (do
+                -- get all matching rules
+                let matchingRules = filter (match headRels) rules
+                let childTrees = concatMap (\rule -> expand rule height rels subs) matchingRules
+                childTrees)
+                -- rule@(Rule matchingHead matchingRels) <- filter (match headRels) rules
+      
+              (Cut) -> do -- TODO
+                -- get all matching rules
+                rule@(Rule matchingHead matchingRels) <- filter (match headRels) rules
+                -- rename matching rules
+                let renamedRule@(Rule renamedHead renamedRels) = rename rule height
+                -- get new goal rels, which are query rels + renamed matching rels
+                -- assume singleton relationships by using concat -- TODO: is this correct?
+                let newGoal = (concat renamedRels) ++ tailRels 
+                -- unify with head to get new subs
+                let maybeSubs = trace ((show headRels) ++ (show renamedHead)) (unify (toFunctor headRels) (toFunctor renamedHead) subs)
+                -- create child trees
+                case maybeSubs of
+                    Just newSubs -> trace (show (Goal newSubs newGoal)) (return (Tree (Goal newSubs newGoal) [] False))
+                    Nothing -> []
+
           -- return list of subs
           search expandedTree (height + 1)
           

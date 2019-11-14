@@ -10,7 +10,7 @@ data Rule = Rule Rel [[Rel]] deriving Show
 -- e.g. parent(X,Y).
 {- this supports either a relation or a cut operator -}
 data Rel = Rel String [Term] 
-         | Cut deriving Show
+         | Cut deriving (Eq, Show)
 
 {- this supports either an atom, variable or functor term -} 
 data Term =
