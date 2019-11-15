@@ -10,10 +10,11 @@ import Debug.Trace
 -- Goal is made of subs and list of relations
 data Goal = Goal Subs [Rel] deriving(Show)
 -- Tree is made of goal and list of subtrees
+{- this represent the resolution tree -}
 data Tree = Tree Goal [Tree] Bool deriving (Show)
- {- this represent the resolution tree -}
+{- this represents a substitution -}
 type Subs = M.Map String Term
- {- this represents a substitution -}
+{- this represents a result of resolution -}
 data Result = Success Subs | Failure deriving (Show)
 
 {- an initial resolution tree -}
@@ -68,115 +69,75 @@ match :: Rel -> Rule -> Bool
 match (Rel name terms) (Rule (Rel name' terms') _) =
   name == name' && length terms == length terms'
 
-  -- data Goal = Goal Subs [Rel]
-  -- data Tree = Tree Goal [Tree] Bool
-  -- data Rule = Rule Rel [[Rel]] deriving Show
-
-  -- data Rel = Rel String [Term] 
-  --        | Cut deriving Show
-
-  -- type Program = Program [Rule] deriving Show
-
 searchAll :: Program -> Tree -> [Subs]
 searchAll (Program rules) tree =
   let searchResult = map fst (search tree 0)
-      nonFailure = [ x | Success x <- searchResult ]
-        -- foldr (\x lst-> case x of {Success k -> k:lst; Failure -> lst}) [] searchResult
-  in nonFailure
-  
+      successes = [ x | Success x <- searchResult ]
+  in successes
   where
-    
-    -- input: matching rule
-    -- output: singleton list containing (new tree generated from matching rule, number of cuts)
-    expand:: Rule -> Int -> [Rel] -> Subs -> [(Tree, Int)]
-    expand rule height rels@(headRels:tailRels) subs =
-      -- rename matching rules
-      let renamedRule@(Rule renamedHead renamedRels) = rename rule height
-          -- get new goal rels, which are query rels + renamed matching rels
-          -- assume singleton relationships by using concat -- TODO: is this correct?
-          newGoal = (concat renamedRels) ++ tailRels 
-          -- unify with head to get new subs
-          maybeSubs = trace ((show headRels) ++ (show renamedHead)) (unify (toFunctor headRels) (toFunctor renamedHead) subs)
-          -- get the number of cuts
-          cutCount = countCuts renamedRels
-      -- create child trees
-      in case maybeSubs of
-          Just newSubs -> {--trace (show (Goal newSubs newGoal))--} ([(Tree (Goal newSubs newGoal) [] False, cutCount)])
-          Nothing -> [] 
-
-    countCuts rels = foldr (\x y -> 
-      case x of 
-        Cut -> 1 + y
-        Rel _ _ -> 0 + y) 0 (join rels)
-
-    -- referenced from: https://stackoverflow.com/questions/22472536/does-haskell-have-a-takeuntil-function
-    takeUntil :: (a -> Bool) -> [a] -> [a]
-    takeUntil _ [] = []
-    takeUntil cond (x:xs) 
-      | cond x = x : takeUntil cond xs
-      | otherwise = [x]
-
-    -- hasCutInRel [] = False
-    -- hasCutInRel (rel:rels) = 
-    --   case rel of
-    --     Cut -> True
-    --     Rel _ _ -> hasCutInRel rels 
-
-    -- input: tree node
-    -- output: list of (Result, cutsPassed) 
+    {- input: tree node
+     - output: list of (Result, cutsPassed) -}
     search:: Tree -> Int -> [(Result, Int)]
     search tree height =
       case tree of
         (Tree (Goal subs []) trees _) -> 
           [(Success subs,0)]
-        -- (Tree (Goal subs rels) trees True) -> do
-        --   childTree <- trees
-        --   search childTree (height + 1)
         (Tree (Goal subs rels@(headRels:tailRels)) _ False) ->
           -- -- unpack list of child trees
-          -- expandedTree <-
             case headRels of
-              (Rel _ _) -> trace ("searching: " ++ show rels) (
-                -- get all matching rules
-                let matchingRules = trace ("matchingRules: " ++ (show $ filter (match headRels) rules)) (filter (match headRels) rules)
+              Rel _ _ -> 
+                let matchingRules = filter (match headRels) rules
                     childTrees = concatMap (\rule -> expand rule height rels subs) matchingRules
-                    -- cutCounts = trace ("cutCounts: " ++ (show $ map countCuts matchingRules)) (map countCuts matchingRules)
                     searchTree (tree, cutCount) = (map (\pairedSubs -> (pairedSubs, cutCount)) (search tree (height + 1)))
                     childSubs = map searchTree childTrees
                     isNotPruned [] = True
-                    isNotPruned (((subs, cutsPassed), cutCount):lst) = trace (show height ++ " isNotPruned: " ++ (show cutsPassed) ++ " " ++ (show cutCount)) (cutsPassed == 0 && isNotPruned lst) 
-                    unprunedChildSubs = join (takeUntil isNotPruned childSubs) -- (zip childSubs cutCounts)
-                    adjustedChildSubs = trace (show height ++ " unprunedChildSubs: " ++ show unprunedChildSubs) (map (\((subs, cutsPassed), cutCount) -> (subs, max 0 (cutsPassed - cutCount))) unprunedChildSubs)
+                    isNotPruned (((subs, cutsPassed), cutCount):xs) = cutsPassed == 0 && isNotPruned xs
+                    unprunedChildSubs = join (takeUntil isNotPruned childSubs)
+                    adjustCutsPassed ((subs, cutsPassed), cutCount) = (subs, max 0 (cutsPassed - cutCount))
+                    adjustedChildSubs = map adjustCutsPassed unprunedChildSubs
 
                 -- merge lists of subs as they each indicate successful mappings
                 in case childTrees of
                   [] -> [(Failure, 0)]
-                  _ -> trace (show height ++ " adjustedChildSubs: " ++ show adjustedChildSubs) adjustedChildSubs)
-                -- rule@(Rule matchingHead matchingRels) <- filter (match headRels) rules
+                  _ -> adjustedChildSubs
       
               Cut -> 
                 let childTree = Tree (Goal subs tailRels) [] False
                     childSubs = search childTree (height + 1)
                     adjustedChildSubs = map (\(childSub, cutsPassed) -> (childSub, cutsPassed + 1)) childSubs
-                in trace (show height ++ " cut adjustedChildSubs: " ++ show adjustedChildSubs) adjustedChildSubs
+                in adjustedChildSubs
 
-              --   -- get all matching rules
-              --   rule@(Rule matchingHead matchingRels) <- filter (match headRels) rules
-              --   -- rename matching rules
-              --   let renamedRule@(Rule renamedHead renamedRels) = rename rule height
-              --   -- get new goal rels, which are query rels + renamed matching rels
-              --   -- assume singleton relationships by using concat -- TODO: is this correct?
-              --   let newGoal = (concat renamedRels) ++ tailRels 
-              --   -- unify with head to get new subs
-              --   let maybeSubs = trace ((show headRels) ++ (show renamedHead)) (unify (toFunctor headRels) (toFunctor renamedHead) subs)
-              --   -- create child trees
-              --   case maybeSubs of
-              --       Just newSubs -> trace (show (Goal newSubs newGoal)) (return (Tree (Goal newSubs newGoal) [] False))
-              --       Nothing -> []
+{- input: matching rule
+ - output: singleton list containing (new tree generated from matching rule, number of cuts) -}
+expand:: Rule -> Int -> [Rel] -> Subs -> [(Tree, Int)]
+expand rule height rels@(headRels:tailRels) subs =
+  -- rename matching rules
+  let renamedRule@(Rule renamedHead renamedRels) = rename rule height
+      -- get new goal rels, which are query rels + renamed matching rels
+      -- assume singleton relationships by using concat -- TODO: is this correct?
+      newGoal = (concat renamedRels) ++ tailRels 
+      -- unify with head to get new subs
+      maybeSubs = unify (toFunctor headRels) (toFunctor renamedHead) subs
+      -- get the number of cuts
+      cutCount = countCuts renamedRels
+  -- create child trees
+  in case maybeSubs of
+      Just newSubs -> ([(Tree (Goal newSubs newGoal) [] False, cutCount)])
+      Nothing -> [] 
 
-          -- return list of subs by searching all child trees
-          -- search expandedTree (height + 1)
-          
+{- counts the number of cuts inside a list of Rels -}
+countCuts:: [[Rel]] -> Int
+countCuts rels = foldr (\x y -> 
+  case x of 
+    Cut -> 1 + y
+    Rel _ _ -> 0 + y) 0 (join rels)
+
+{- adapted from: https://stackoverflow.com/questions/22472536/does-haskell-have-a-takeuntil-function -}
+takeUntil :: (a -> Bool) -> [a] -> [a]
+takeUntil _ [] = []
+takeUntil cond (x:xs) 
+  | cond x = x : takeUntil cond xs
+  | otherwise = [x]
 
 {- returns all variables in a relation -}
 variables :: Rel -> [Term]

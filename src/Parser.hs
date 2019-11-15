@@ -31,7 +31,7 @@ functorP :: Parser (String, [Term]) -- functor and relation have the same parser
 functorP = do
   term <- termP
   case term of 
-    (Func name terms) -> trace ("functorP: " ++ show term) (return (name, terms))
+    (Func name terms) -> return (name, terms)
     (Atom s) -> return (s, []) -- TODO: is this correct?
     (Var s) -> return(s, [])
 
@@ -71,7 +71,7 @@ ruleP = do
   rels <- 
     (between (symbol ":-") (symbol ".") (flip sepBy (symbol ",") . flip sepBy (symbol ";") $ relP))
       <|> (symbol "." *> return [[]])
-  trace ("ruleP: " ++ show (Rule head rels)) (return (Rule head rels))
+  return (Rule head rels)
 
 programP :: Parser Program
 programP = fmap Program $ many ruleP

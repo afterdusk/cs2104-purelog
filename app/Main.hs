@@ -11,7 +11,7 @@ import Debug.Trace
 data State = Idle | Search Rel Tree Int
 
 showTruth :: Int -> IO ()
-showTruth nSols = trace (show nSols) (if nSols == 0 then putStrLn "false" else putStrLn "true")
+showTruth nSols = if nSols == 0 then putStrLn "false" else putStrLn "true"
 
 printSolution :: Rel -> Subs -> IO ()
 -- printSolution takes query rel and subs, extracting variables and printing
@@ -52,8 +52,7 @@ main = do
     [filename] -> do
       source <- readFile (head args)
       case parseProgram source of
-        -- Right program -> putStrLn "Loaded successfully" >> run_prog program
-        Right program -> putStrLn (show program) >> run_prog program
+        Right program -> putStrLn "Loaded successfully" >> run_prog program
         Left err -> print err
     _ -> putStrLn "Usage: purelog <filename>"
   return ()
