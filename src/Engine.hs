@@ -75,26 +75,28 @@ searchAll (Program rules) tree =
       successes = [ x | Success x <- searchResult ]
   in successes
   where
+
+    {- helper functions for search function below -}
+    distributeCutCounts (trees, cutCount) = [(tree, cutCount) | tree <- trees]
+    isNotPruned [] = True
+    isNotPruned (((subs, cutsPassed), cutCount):xs) = cutsPassed == 0 && isNotPruned xs
+
     {- input: tree node
      - output: list of (Result, cutsPassed) -}
     search:: Tree -> Int -> [(Result, Int)]
     search tree height =
       case tree of
-        (Tree (Goal subs []) trees _) -> 
-          [(Success subs,0)]
+        --  Note: trees will never have isExpanded = True
+        (Tree (Goal subs []) trees _) -> [(Success subs,0)]
         (Tree (Goal subs rels@(headRels:tailRels)) _ False) ->
           -- -- unpack list of child trees
             case headRels of
               Rel _ _ -> 
                 let matchingRules = filter (match headRels) rules
                     childTrees = concatMap (\rule -> expand rule height rels subs) matchingRules
-                    searchTree (tree, cutCount) = (map (\pairedSubs -> (pairedSubs, cutCount)) (search tree (height + 1)))
-                    childSubs = map searchTree childTrees
-                    isNotPruned [] = True
-                    isNotPruned (((subs, cutsPassed), cutCount):xs) = cutsPassed == 0 && isNotPruned xs
+                    childSubs = [distributeCutCounts (search tree (height + 1), cutCount) | (tree, cutCount) <- childTrees]
                     unprunedChildSubs = join (takeUntil isNotPruned childSubs)
-                    adjustCutsPassed ((subs, cutsPassed), cutCount) = (subs, max 0 (cutsPassed - cutCount))
-                    adjustedChildSubs = map adjustCutsPassed unprunedChildSubs
+                    adjustedChildSubs = [(subs, max 0 (cutsPassed - cutCount)) | ((subs, cutsPassed), cutCount) <- unprunedChildSubs]
 
                 -- merge lists of subs as they each indicate successful mappings
                 in case childTrees of
@@ -114,7 +116,7 @@ expand rule height rels@(headRels:tailRels) subs =
   -- rename matching rules
   let renamedRule@(Rule renamedHead renamedRels) = rename rule height
       -- get new goal rels, which are query rels + renamed matching rels
-      -- assume singleton relationships by using concat -- TODO: is this correct?
+      -- TODO: remove assumption of singleton relationships made by using concat 
       newGoal = (concat renamedRels) ++ tailRels 
       -- unify with head to get new subs
       maybeSubs = unify (toFunctor headRels) (toFunctor renamedHead) subs
