@@ -1,4 +1,6 @@
 lessthan(two,three).
 greaterthan(three,two).
-max(X,Y,Y) :- lessthan(X,Y),!.
-max(X,Y,X) :- greaterthan(X,Y).
+equals(two,two).
+equals(three,three).
+max(X,Y,Z) :- lessthan(X,Y),!,equals(Y,Z).
+max(X,Y,X).
