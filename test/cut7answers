@@ -1,0 +1,12 @@
+
+% backtrack before first cut
+% a(other, Y) => {X=other, Y=other}
+
+% backtrack before first cut, pass first cut, pass second cut
+% a(two,Y) => {X=two, Y=two}
+
+% pass first cut, backtrack before second cut, pass second cut, backtrack
+% a(X,one) => {X=one, Y=one}
+
+% pass first cut, backtrack before second cut and failing
+% a(X,other) => {}

@@ -1,0 +1,11 @@
+p(X):-a(X).
+p(X):-b(X),c(X),!,d(X),e(X).
+p(X):-f(X).
+a(one).
+b(one).
+c(one).
+b(two).
+c(two).
+d(two).
+e(two).
+f(three).
